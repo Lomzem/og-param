@@ -101,16 +101,9 @@ OID     DISPLAY NAME    MENU    TYPE   ACCESS
     +----------------+-----------+
 ```
 
-Menu qualifiers can appear on either side of the value:
-
-```sh
-og-param 10.3.112.50 14 write "Colorspace" --menu "SDI In 1" Auto
-og-param 10.3.112.50 14 write "Colorspace" Auto --menu "SDI In 1"
-```
-
 ### Selectors
 
-Display names, menu names, group names, and choice labels are matched without ASCII case sensitivity:
+Display names, menu names, group names, and choice labels are **not case sensitive**.
 
 ```sh
 # Both valid
@@ -143,11 +136,65 @@ You could enable `Parameter Inspector Mode` by clicking `Views > openGear Parame
 
 ### Connection and Formats
 
-Connections are forced by default for the manufacturing workflow. Use `--no-force` to avoid displacing another client and `--format json` for subprocess automation.
+Connections are forced by default for the manufacturing workflow. Use `--no-force` to avoid displacing another client.
 
 `info`, `read`, and `write` support human or JSON output. `list` supports table, JSON, current CSV, and legacy CSV. The legacy CSV's `Parameter Name` column contains the OID.
 
 The runtime reads and writes scalar integers, floats, strings, choices, ranges, and alarms. Arrays, binary values, and unknown types are list-only. Authentication is not supported.
+
+### Scripting
+
+`og-param` is built to work well with scripts.
+
+All command outputs could be formatted into structured JSON output by including `--format json`:
+
+```sh
+$ og-param 10.3.251.15 15 write "SFP 1 Mode" "Receive" --format json
+{
+  "ok": true,
+  "operation": "write",
+  "result": {
+    "display_value": {
+      "kind": "label",
+      "value": "Receive"
+    },
+    "parameter": {
+      "display_name": "SFP 1 Mode",
+      "oid": "0x0503"
+    },
+    "requested_value": {
+      "kind": "int16",
+      "value": 0
+    },
+    "value": {
+      "kind": "int16",
+      "value": 0
+    }
+  },
+  "schema_version": 5
+}
+
+$ og-param 10.3.251.15 15 read "SFP 1 Mode" --format json
+{
+  "ok": true,
+  "operation": "read",
+  "result": {
+    "display_value": {
+      "kind": "label",
+      "value": "Receive"
+    },
+    "parameter": {
+      "display_name": "SFP 1 Mode",
+      "oid": "0x0503"
+    },
+    "value": {
+      "kind": "int16",
+      "value": 0
+    }
+  },
+  "schema_version": 5
+}
+```
 
 ## Build
 
