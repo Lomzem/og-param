@@ -131,6 +131,16 @@ og-param 10.3.112.50 14 read name:0x0105
 
 Ambiguous names are never guessed. The error lists usable `--menu` qualifiers and OIDs.
 
+If multiple parameters have both the same display name and the same menu, no menu qualifier can distinguish them. The error lists each candidate's OID; select the intended parameter explicitly:
+
+```sh
+og-param 10.3.112.50 14 read oid:0x1201
+```
+
+To determine which OID belongs to a control in DashBoard, enable `Parameter Inspector Mode` and click the control to view its debug information. Use the reported OID with `oid:<OID>` for subsequent `list`, `read`, and `write` commands.
+
+You could enable `Parameter Inspector Mode` by clicking `Views > openGear Parameter Inspector`.
+
 ### Connection and Formats
 
 Connections are forced by default for the manufacturing workflow. Use `--no-force` to avoid displacing another client and `--format json` for subprocess automation.

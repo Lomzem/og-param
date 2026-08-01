@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::io::{self, Write};
 use std::process::ExitCode;
 use std::str::FromStr;
@@ -673,31 +674,7 @@ fn print_error_guidance(error: &CliError) {
     }
     match resolution_error(error) {
         Some(ResolveError::AmbiguousDisplayName { candidates, .. }) => {
-            eprintln!("Disambiguate with one of these menu qualifiers:");
-            for candidate in candidates {
-                if candidate.menus.is_empty() {
-                    eprintln!(
-                        "  oid:{}  ({})",
-                        candidate.parameter.oid,
-                        visible_name(&candidate.parameter.display_name)
-                    );
-                } else {
-                    for path in &candidate.menus {
-                        if path.group_required {
-                            eprintln!(
-                                "  --menu {:?} --group {:?}  (oid:{})",
-                                path.menu, path.group, candidate.parameter.oid
-                            );
-                        } else {
-                            eprintln!(
-                                "  --menu {:?}  (oid:{})",
-                                path.menu, candidate.parameter.oid
-                            );
-                        }
-                    }
-                }
-            }
-            eprintln!("Or select directly with oid:<OID>.");
+            eprintln!("{}", ambiguous_parameter_guidance(candidates));
         }
         Some(ResolveError::AmbiguousMenu { candidates, .. }) => {
             eprintln!("Select the menu with --group:");
@@ -713,6 +690,85 @@ fn print_error_guidance(error: &CliError) {
         }
         _ => {}
     }
+}
+
+fn ambiguous_parameter_guidance(candidates: &[ParameterCandidate]) -> String {
+    let qualifier_key = |path: &og_param::model::MenuPath| {
+        (
+            path.menu.to_ascii_lowercase(),
+            path.group_required.then(|| path.group.to_ascii_lowercase()),
+        )
+    };
+    let unique_paths: Vec<_> = candidates
+        .iter()
+        .map(|candidate| {
+            let mut seen = HashSet::new();
+            candidate
+                .menus
+                .iter()
+                .filter(|path| {
+                    let key = qualifier_key(path);
+                    let owners = candidates
+                        .iter()
+                        .filter(|other| {
+                            other
+                                .menus
+                                .iter()
+                                .any(|other_path| qualifier_key(other_path) == key)
+                        })
+                        .count();
+                    owners == 1 && seen.insert(key)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
+
+    if unique_paths.iter().all(Vec::is_empty) {
+        let mut lines =
+            vec!["No unique menu qualifier identifies these parameters; select one by OID:".into()];
+        for candidate in candidates {
+            let menus = candidate
+                .menus
+                .iter()
+                .map(csv_output::menu_path_name)
+                .collect::<Vec<_>>()
+                .join(", ");
+            lines.push(format!(
+                "  oid:{}  {}  [{}]",
+                candidate.parameter.oid,
+                visible_name(&candidate.parameter.display_name),
+                if menus.is_empty() { "-" } else { &menus }
+            ));
+        }
+        return lines.join("\n");
+    }
+
+    let mut lines = vec!["Disambiguate with a unique menu qualifier or OID:".into()];
+    for (candidate, paths) in candidates.iter().zip(unique_paths) {
+        if paths.is_empty() {
+            lines.push(format!(
+                "  oid:{}  ({})",
+                candidate.parameter.oid,
+                visible_name(&candidate.parameter.display_name)
+            ));
+            continue;
+        }
+        for path in paths {
+            if path.group_required {
+                lines.push(format!(
+                    "  --menu {:?} --group {:?}  (oid:{})",
+                    path.menu, path.group, candidate.parameter.oid
+                ));
+            } else {
+                lines.push(format!(
+                    "  --menu {:?}  (oid:{})",
+                    path.menu, candidate.parameter.oid
+                ));
+            }
+        }
+    }
+    lines.push("Or select directly with oid:<OID>.".into());
+    lines.join("\n")
 }
 
 fn error_json(error: &CliError) -> Value {
@@ -984,6 +1040,75 @@ mod tests {
             json["error"]["hint"],
             "Retry without --no-force to force the connection and disconnect another client."
         );
+    }
+
+    #[test]
+    fn identical_name_and_menu_candidates_require_oid_selection() {
+        let menu = og_param::model::MenuPath {
+            group: "Configuration".into(),
+            menu: "Input".into(),
+            group_required: false,
+        };
+        let candidates = vec![
+            ParameterCandidate {
+                parameter: Parameter {
+                    oid: ParameterOid::Numeric(0x1201),
+                    ..parameter()
+                }
+                .identity(),
+                menus: vec![menu.clone()],
+            },
+            ParameterCandidate {
+                parameter: Parameter {
+                    oid: ParameterOid::Numeric(0x1202),
+                    ..parameter()
+                }
+                .identity(),
+                menus: vec![menu],
+            },
+        ];
+
+        let guidance = ambiguous_parameter_guidance(&candidates);
+
+        assert!(guidance.starts_with("No unique menu qualifier"));
+        assert!(guidance.contains("oid:0x1201  Parameter  [Input]"));
+        assert!(guidance.contains("oid:0x1202  Parameter  [Input]"));
+        assert!(!guidance.contains("--menu"));
+    }
+
+    #[test]
+    fn distinct_candidate_menus_remain_actionable_qualifiers() {
+        let candidates = [
+            ParameterCandidate {
+                parameter: Parameter {
+                    oid: ParameterOid::Numeric(0x1201),
+                    ..parameter()
+                }
+                .identity(),
+                menus: vec![og_param::model::MenuPath {
+                    group: "Configuration".into(),
+                    menu: "Input 1".into(),
+                    group_required: false,
+                }],
+            },
+            ParameterCandidate {
+                parameter: Parameter {
+                    oid: ParameterOid::Numeric(0x1202),
+                    ..parameter()
+                }
+                .identity(),
+                menus: vec![og_param::model::MenuPath {
+                    group: "Configuration".into(),
+                    menu: "Input 2".into(),
+                    group_required: false,
+                }],
+            },
+        ];
+
+        let guidance = ambiguous_parameter_guidance(&candidates);
+
+        assert!(guidance.contains("--menu \"Input 1\"  (oid:0x1201)"));
+        assert!(guidance.contains("--menu \"Input 2\"  (oid:0x1202)"));
     }
 
     #[test]
