@@ -1,0 +1,1 @@
+- The `@repos/` directory should be **read-only**. Do not modify it or include any source code from it!
