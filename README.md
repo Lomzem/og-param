@@ -130,7 +130,7 @@ If multiple parameters have both the same display name and the same menu, no men
 og-param 10.3.112.50 14 read oid:0x1201
 ```
 
-To determine which OID belongs to a parameter in DashBoard, enable `Parameter Inspector Mode` and click the control to view its debug information. Use the reported OID with `oid:<OID>` for subsequent `list`, `read`, and `write` commands.
+To determine which OID belongs to a parameter in DashBoard, enable `Parameter Inspector Mode` and click the parameter to view its debug information. Use the reported OID with `oid:<OID>` for subsequent `list`, `read`, and `write` commands.
 
 You could enable `Parameter Inspector Mode` by clicking `Views > openGear Parameter Inspector`.
 
