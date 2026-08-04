@@ -3,7 +3,7 @@ use crate::model::{
 };
 use thiserror::Error;
 
-pub fn current(catalog: &DeviceCatalog) -> Result<Vec<u8>, CsvOutputError> {
+pub fn render(catalog: &DeviceCatalog) -> Result<Vec<u8>, CsvOutputError> {
     let mut writer = csv::WriterBuilder::new()
         .terminator(csv::Terminator::Any(b'\n'))
         .from_writer(Vec::new());
@@ -44,44 +44,6 @@ pub fn menu_path_name(path: &crate::model::MenuPath) -> String {
         format!("{} ({})", path.menu, path.group)
     } else {
         path.menu.clone()
-    }
-}
-
-pub fn legacy(catalog: &DeviceCatalog) -> Result<Vec<u8>, CsvOutputError> {
-    let mut writer = csv::WriterBuilder::new()
-        .terminator(csv::Terminator::Any(b'\n'))
-        .from_writer(Vec::new());
-    writer.write_record(["Parameter Name", "Dashboard Parameter Name", "Value Names"])?;
-    for parameter in catalog
-        .parameters
-        .iter()
-        .filter(|parameter| parameter.role == ParameterRole::Operational)
-    {
-        writer.write_record([
-            parameter.oid.to_string(),
-            parameter.display_name.clone(),
-            String::new(),
-        ])?;
-        for value in legacy_value_names(parameter) {
-            writer.write_record(["", "", &format!(" {value}")])?;
-        }
-    }
-    writer
-        .into_inner()
-        .map_err(|error| CsvOutputError::Finalize(error.error().to_string()))
-}
-
-fn legacy_value_names(parameter: &Parameter) -> Vec<String> {
-    match parameter.resolved_constraint() {
-        Constraint::Choice { choices } => choices
-            .iter()
-            .map(|choice| choice.display_name.clone())
-            .collect(),
-        Constraint::StringChoice { choices, .. } => choices.clone(),
-        Constraint::AlarmTable { alarms } => {
-            alarms.iter().map(|alarm| alarm.name.clone()).collect()
-        }
-        _ => Vec::new(),
     }
 }
 
@@ -312,7 +274,7 @@ mod tests {
     }
 
     #[test]
-    fn current_csv_includes_conditional_menu_context() {
+    fn csv_includes_conditional_menu_context() {
         let parameter = parameter();
         let mut catalog = DeviceCatalog::new(vec![parameter.clone()]).unwrap();
         catalog.set_menus(
@@ -331,7 +293,7 @@ mod tests {
             Vec::new(),
         );
 
-        let output = String::from_utf8(current(&catalog).unwrap()).unwrap();
+        let output = String::from_utf8(render(&catalog).unwrap()).unwrap();
         assert!(output.starts_with("OID,Display Name,Menu,Type,"));
         assert!(output.contains("0x0001,Parameter,Input,int16,"));
         assert!(!output.contains("Input (Configuration)"));

@@ -64,9 +64,6 @@ enum Command {
         no_force: bool,
         #[arg(long, value_enum, default_value_t)]
         format: ListFormat,
-        /// Emit the historical three-column CSV layout, using OIDs as parameter names.
-        #[arg(long, requires = "format")]
-        legacy_schema: bool,
     },
     /// Read a parameter, optionally qualified by menu and group.
     Read {
@@ -163,7 +160,6 @@ async fn run(cli: Cli) -> Result<(), CliError> {
             parameter,
             no_force,
             format,
-            legacy_schema,
         } => {
             let mut client = OgpClient::connect(&host, slot, !no_force).await?;
             let catalog = client.discover().await?;
@@ -188,7 +184,7 @@ async fn run(cli: Cli) -> Result<(), CliError> {
                     )?]
                 }
             };
-            print_list(catalog, parameters, format, legacy_schema)?;
+            print_list(catalog, parameters, format)?;
         }
         Command::Read {
             group,
@@ -453,13 +449,7 @@ fn print_list(
     catalog: &DeviceCatalog,
     parameters: Vec<&Parameter>,
     format: ListFormat,
-    legacy_schema: bool,
 ) -> Result<(), CliError> {
-    if legacy_schema && format != ListFormat::Csv {
-        return Err(CliError::Usage(
-            "--legacy-schema requires --format csv".into(),
-        ));
-    }
     match format {
         ListFormat::Table => print!("{}", parameter_table(catalog, &parameters)),
         ListFormat::Json => print_json(json!({
@@ -481,7 +471,7 @@ fn print_list(
                 catalog.menu_discovery_error.clone(),
                 catalog.incomplete_menu_groups.clone(),
             );
-            print_csv(&selected, legacy_schema)?;
+            print_csv(&selected)?;
         }
     }
     Ok(())
@@ -492,13 +482,7 @@ fn list_parameter_json(catalog: &DeviceCatalog, parameter: &Parameter) -> Value 
     let menus = catalog
         .menu_paths(parameter)
         .iter()
-        .map(|path| {
-            if path.group_required {
-                json!({ "menu": path.menu, "group": path.group })
-            } else {
-                json!({ "menu": path.menu })
-            }
-        })
+        .map(|path| json!({ "menu": path.menu, "group": path.group }))
         .collect();
     value
         .as_object_mut()
@@ -565,12 +549,8 @@ fn visible_name(value: &str) -> &str {
     if value.is_empty() { "<unnamed>" } else { value }
 }
 
-fn print_csv(catalog: &DeviceCatalog, legacy: bool) -> Result<(), CliError> {
-    let bytes = if legacy {
-        csv_output::legacy(catalog)?
-    } else {
-        csv_output::current(catalog)?
-    };
+fn print_csv(catalog: &DeviceCatalog) -> Result<(), CliError> {
+    let bytes = csv_output::render(catalog)?;
     io::stdout().lock().write_all(&bytes)?;
     Ok(())
 }
@@ -1127,7 +1107,7 @@ mod tests {
     }
 
     #[test]
-    fn list_output_qualifies_only_ambiguous_menu_names() {
+    fn list_outputs_include_appropriate_menu_context() {
         let first = parameter();
         let mut second = parameter();
         second.oid = ParameterOid::Numeric(2);
@@ -1159,7 +1139,10 @@ mod tests {
         assert!(!table.contains("System (Configuration)"));
 
         let json = list_parameter_json(&catalog, &third);
-        assert_eq!(json["menus"], json!([{ "menu": "System" }]));
+        assert_eq!(
+            json["menus"],
+            json!([{ "menu": "System", "group": "Configuration" }])
+        );
         let json = list_parameter_json(&catalog, &first);
         assert_eq!(
             json["menus"],

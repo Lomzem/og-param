@@ -8,7 +8,7 @@ Every command starts with the frame controller host and card slot:
 
 ```text
 og-param <host> <slot> info [--format json] [--no-force]
-og-param <host> <slot> list [<parameter>] [--menu <menu>] [--group <group>] [--format table|json|csv] [--legacy-schema] [--no-force]
+og-param <host> <slot> list [<parameter>] [--menu <menu>] [--group <group>] [--format table|json|csv] [--no-force]
 og-param <host> <slot> read <parameter> [--menu <menu>] [--group <group>] [--format json] [--no-force]
 og-param <host> <slot> write <parameter> [<value>] [--menu <menu>] [--group <group>] [--format json] [--no-force]
 ```
@@ -34,7 +34,6 @@ og-param 10.3.112.50 14 list "Colorspace" --menu "SDI In 1"
 # Machine-readable output
 og-param 10.3.112.50 14 list --format json
 og-param 10.3.112.50 14 list --format csv
-og-param 10.3.112.50 14 list --format csv --legacy-schema
 ```
 
 ### Read
@@ -139,63 +138,15 @@ og-param 10.3.112.50 14 read oid:0x1201
 
 Connections are forced by default for the manufacturing workflow. Use `--no-force` to avoid displacing another client.
 
-`info`, `read`, and `write` support human or JSON output. `list` supports table, JSON, current CSV, and legacy CSV. The legacy CSV's `Parameter Name` column contains the OID.
+`info`, `read`, and `write` support human or JSON output. `list` supports table, JSON, and CSV.
 
 The runtime reads and writes scalar integers, floats, strings, choices, ranges, and alarms. Arrays, binary values, and unknown types are list-only. Authentication is not supported.
 
 ### Scripting
 
-`og-param` is built to work well with scripts.
+All commands support structured JSON output with `--format json`. The `list` command also supports CSV output.
 
-All command outputs could be formatted into structured JSON output by including `--format json`:
-
-```sh
-$ og-param 10.3.251.15 15 write "SFP 1 Mode" "Receive" --format json
-{
-  "ok": true,
-  "operation": "write",
-  "result": {
-    "display_value": {
-      "kind": "label",
-      "value": "Receive"
-    },
-    "parameter": {
-      "display_name": "SFP 1 Mode",
-      "oid": "0x0503"
-    },
-    "requested_value": {
-      "kind": "int16",
-      "value": 0
-    },
-    "value": {
-      "kind": "int16",
-      "value": 0
-    }
-  },
-  "schema_version": 5
-}
-
-$ og-param 10.3.251.15 15 read "SFP 1 Mode" --format json
-{
-  "ok": true,
-  "operation": "read",
-  "result": {
-    "display_value": {
-      "kind": "label",
-      "value": "Receive"
-    },
-    "parameter": {
-      "display_name": "SFP 1 Mode",
-      "oid": "0x0503"
-    },
-    "value": {
-      "kind": "int16",
-      "value": 0
-    }
-  },
-  "schema_version": 5
-}
-```
+See [Scripting with og-param](SCRIPTING.md) for more details about JSON and CSV output.
 
 ## Build
 
